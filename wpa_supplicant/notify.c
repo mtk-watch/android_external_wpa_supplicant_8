@@ -23,6 +23,9 @@
 #include "sme.h"
 #include "notify.h"
 #include "hidl.h"
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+#include "mtk_hidl.h"
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 
 int wpas_notify_supplicant_initialized(struct wpa_global *global)
 {
@@ -38,6 +41,9 @@ int wpas_notify_supplicant_initialized(struct wpa_global *global)
 	global->hidl = wpas_hidl_init(global);
 	if (!global->hidl)
 		return -1;
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+	mtk_wpas_hidl_init(global);
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 #endif /* CONFIG_HIDL */
 
 	return 0;
@@ -52,8 +58,12 @@ void wpas_notify_supplicant_deinitialized(struct wpa_global *global)
 #endif /* CONFIG_CTRL_IFACE_DBUS_NEW */
 
 #ifdef CONFIG_HIDL
-	if (global->hidl)
+	if (global->hidl) {
 		wpas_hidl_deinit(global->hidl);
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+		mtk_wpas_hidl_deinit();
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
+	}
 #endif /* CONFIG_HIDL */
 }
 
@@ -69,6 +79,10 @@ int wpas_notify_iface_added(struct wpa_supplicant *wpa_s)
 	if (wpas_hidl_register_interface(wpa_s))
 		return -1;
 
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+	mtk_wpas_hidl_register_interface(wpa_s);
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
+
 	return 0;
 }
 
@@ -82,6 +96,10 @@ void wpas_notify_iface_removed(struct wpa_supplicant *wpa_s)
 
 	/* HIDL interface wants to keep track of the P2P mgmt iface. */
 	wpas_hidl_unregister_interface(wpa_s);
+
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+	mtk_wpas_hidl_unregister_interface(wpa_s);
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 }
 
 
@@ -381,6 +399,9 @@ void wpas_notify_network_added(struct wpa_supplicant *wpa_s,
 	if (!ssid->p2p_group && wpa_s->global->p2p_group_formation != wpa_s) {
 		wpas_dbus_register_network(wpa_s, ssid);
 		wpas_hidl_register_network(wpa_s, ssid);
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+		mtk_wpas_hidl_register_network(wpa_s, ssid);
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 	}
 }
 
@@ -416,6 +437,9 @@ void wpas_notify_network_removed(struct wpa_supplicant *wpa_s,
 	    !wpa_s->p2p_mgmt) {
 		wpas_dbus_unregister_network(wpa_s, ssid->id);
 		wpas_hidl_unregister_network(wpa_s, ssid);
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+		mtk_wpas_hidl_unregister_network(wpa_s, ssid);
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 	}
 	if (network_is_persistent_group(ssid))
 		wpas_notify_persistent_group_removed(wpa_s, ssid);
@@ -1163,3 +1187,34 @@ void wpas_notify_dpp_failure(struct wpa_supplicant *wpa_s)
 	wpas_hidl_notify_dpp_fail(wpa_s);
 #endif /* CONFIG_DPP */
 }
+
+#ifdef CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY
+void wpas_notify_ess_imm_disassoc(struct wpa_supplicant *wpa_s, const u32 pmf_enabled,
+	const u32 reauth_delay, const char *url)
+{
+	if (wpa_s->p2p_mgmt)
+		return;
+
+	mtk_wpas_hidl_notify_wnm_ess_disassoc_imminent_notice(wpa_s, pmf_enabled, reauth_delay, url);
+}
+#endif /* CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY */
+
+#ifdef CONFIG_MTK_DATA_STALL_NOTIFY
+void wpas_notify_data_stall_reason(struct wpa_supplicant *wpa_s, uint32_t reason)
+{
+	if (wpa_s->p2p_mgmt)
+		return;
+
+	mtk_wpas_hidl_notify_data_stall_reason(wpa_s, reason);
+}
+#endif /* CONFIG_MTK_DATA_STALL_NOTIFY */
+
+#ifdef CONFIG_MTK_CH_SWITCH_NOTIFY
+void wpas_notify_assoc_freq_changed(struct wpa_supplicant *wpa_s)
+{
+	if (wpa_s->p2p_mgmt)
+		return;
+
+	mtk_wpas_hidl_notify_assoc_freq_changed(wpa_s);
+}
+#endif /* CONFIG_MTK_CH_SWITCH_NOTIFY */

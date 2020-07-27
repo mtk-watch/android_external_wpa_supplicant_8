@@ -66,6 +66,9 @@
 #include "ap/ap_config.h"
 #include "ap/hostapd.h"
 #endif /* CONFIG_MESH */
+#ifdef CONFIG_WAPI_SUPPORT
+#include "wapi.h"
+#endif
 
 const char *const wpa_supplicant_version =
 "wpa_supplicant v" VERSION_STR "\n"
@@ -525,6 +528,12 @@ static void wpa_supplicant_cleanup(struct wpa_supplicant *wpa_s)
 
 	wmm_ac_clear_saved_tspecs(wpa_s);
 	pmksa_candidate_free(wpa_s->wpa);
+#ifdef CONFIG_WAPI_SUPPORT
+	if (wpa_s->wapi) {
+		wapi_deinit(wpa_s);
+		wpa_s->wapi = NULL;
+	}
+#endif
 	wpa_sm_deinit(wpa_s->wpa);
 	wpa_s->wpa = NULL;
 	wpa_blacklist_clear(wpa_s);
@@ -2626,6 +2635,15 @@ static u8 * wpas_populate_assoc_ies(
 			params->wps = WPS_MODE_OPEN;
 		wpa_s->wpa_proto = 0;
 #endif /* CONFIG_WPS */
+#ifdef CONFIG_WAPI_SUPPORT
+	} else if (ssid->proto == WPA_PROTO_WAPI) {
+		if (wapi_set_suites(wpa_s, ssid, bss, wpa_ie, &wpa_ie_len) < 0) {
+			wpa_msg(wpa_s, MSG_WARNING, "WPA: Failed to set WAPI "
+				"key management and encryption suites");
+			wpas_connect_work_done(wpa_s);
+			return NULL;
+		}
+#endif
 	} else {
 		wpa_supplicant_set_non_wpa_policy(wpa_s, ssid);
 		wpa_ie_len = 0;
@@ -3363,6 +3381,16 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
 			/* give IBSS a bit more time */
 			timeout = ssid->mode == WPAS_MODE_IBSS ? 20 : 10;
 		}
+#ifdef CONFIG_WAPI_SUPPORT
+		if (wpa_s->wpa_proto == WPA_PROTO_WAPI) {
+			wpa_s->current_ssid = ssid;
+			wpa_printf(MSG_DEBUG,
+				"[WAPI] set WAPI Auth Time in 35 secs"
+				" and not to initiate eapol\n");
+			wpa_supplicant_req_auth_timeout(wpa_s, 35, 0);
+			return;
+		}
+#endif
 		wpa_supplicant_req_auth_timeout(wpa_s, timeout, 0);
 	}
 
@@ -5958,6 +5986,11 @@ static int wpa_supplicant_init_iface(struct wpa_supplicant *wpa_s,
 
 	wpa_supplicant_set_default_scan_ies(wpa_s);
 
+#ifdef CONFIG_WAPI_SUPPORT
+	if (os_strcmp(iface->ifname,"wlan0") == 0 && wapi_init(wpa_s) < 0)
+		wpa_printf(MSG_ERROR, "wapi_init failed!");
+#endif
+
 	return 0;
 }
 
@@ -6612,6 +6645,10 @@ void wpa_supplicant_update_config(struct wpa_supplicant *wpa_s)
 				   "'%s'", country);
 		}
 	}
+#ifdef CONFIG_WAPI_SUPPORT
+	if (wpa_s->conf->changed_parameters & CFG_CHANGED_WAPI_CERT_ALIAS_LIST)
+		wapi_handle_cert_list_changed(wpa_s);
+#endif
 
 	if (wpa_s->conf->changed_parameters & CFG_CHANGED_EXT_PW_BACKEND)
 		wpas_init_ext_pw(wpa_s);
@@ -7250,8 +7287,22 @@ int get_shared_radio_freqs_data(struct wpa_supplicant *wpa_s,
 		"Determining shared radio frequencies (max len %u)", len);
 	os_memset(freqs_data, 0, sizeof(struct wpa_used_freq_data) * len);
 
+/*
+ * In current MTK driver implementation, virtual interfaces wlan0 and p2p0
+ * use different radio names. However, per Supplicant's design, different
+ * virtual interfaces can share freq data only if they were added to the
+ * same radio. To work around this issue, we will need to iterate global
+ * interfaces instead of the interfaces in the radio in order to get
+ * p2p connection in SCC mode.
+ */
+#ifdef CONFIG_MTK_SCC
+	for (ifs = wpa_s->global->ifaces; ifs; ifs = ifs->next) {
+		if (ifs != wpa_s && os_strcmp(ifs->ifname, "p2p0") == 0)
+			continue;
+#else
 	dl_list_for_each(ifs, &wpa_s->radio->ifaces, struct wpa_supplicant,
 			 radio_list) {
+#endif
 		if (idx == len)
 			break;
 

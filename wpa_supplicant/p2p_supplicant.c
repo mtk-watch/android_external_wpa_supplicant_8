@@ -3584,7 +3584,18 @@ static enum chan_allowed wpas_p2p_verify_channel(struct wpa_supplicant *wpa_s,
 		if (!(flag & HOSTAPD_CHAN_HT40PLUS))
 			return NOT_ALLOWED;
 		res2 = has_channel(wpa_s->global, mode, channel + 4, NULL);
+#ifdef CONFIG_MTK_P2P_CONN
+/*
+ * [ALPS03415656] Device C cannot join an existing P2P group.
+ * The BW80P80 type of class 130 defined in global_op_class was not handled
+ * properly by AOSP Supplicant. Many channels of class 130 was added to P2P's
+ * supported channels unexpectedly and may cause IOT issues. This patch will
+ * remove class 130 channels if the device does not support 80211ac.
+ */
+	} else if (bw == BW80 || bw == BW80P80) {
+#else
 	} else if (bw == BW80) {
+#endif
 		res2 = wpas_p2p_verify_80mhz(wpa_s, mode, channel, bw);
 	} else if (bw == BW160) {
 		res2 = wpas_p2p_verify_160mhz(wpa_s, mode, channel, bw);
@@ -7987,6 +7998,18 @@ void wpas_p2p_network_removed(struct wpa_supplicant *wpa_s,
 			      struct wpa_ssid *ssid)
 {
 	if (wpa_s->p2p_in_provisioning && ssid->p2p_group &&
+#ifdef CONFIG_MTK_P2P_CONN
+/* [ALPS04230256] p2p: Fix WFD connect issue
+ * AOSP frameworks support maximum 33 connections. In current supplicant's
+ * implementation, if we try to re-establish p2p connection with a IOT device
+ * that does not support p2p inviation, the invitation connection will fail
+ * and create a new invalid network ID in frameworks. Repeat this scenario
+ * for 33 times, we will not be able to connect to the IOT device any more
+ * (unless we turn wifi off and on again). To resolve this issue, we will have
+ * to check the SSID when trying to remove a network.
+ */
+	    (ssid == wpa_s->current_ssid) &&
+#endif
 	    eloop_cancel_timeout(wpas_p2p_group_formation_timeout,
 				 wpa_s->p2pdev, NULL) > 0) {
 		/**

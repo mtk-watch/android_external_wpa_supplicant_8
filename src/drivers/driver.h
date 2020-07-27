@@ -4703,6 +4703,10 @@ enum wpa_event_type {
 	 * This event is emitted when an interface is added/removed for WDS STA.
 	 */
 	EVENT_WDS_STA_INTERFACE_STATUS,
+
+#ifdef CONFIG_MTK_DATA_STALL_NOTIFY
+	EVENT_DRIVER_ERROR,
+#endif /* CONFIG_MTK_DATA_STALL_NOTIFY */
 };
 
 
@@ -5536,6 +5540,12 @@ union wpa_event_data {
 			INTERFACE_REMOVED
 		} istatus;
 	} wds_sta_interface;
+
+#ifdef CONFIG_MTK_DATA_STALL_NOTIFY
+	struct driver_error {
+		u32 *errCode;
+	} driver_error;
+#endif /* CONFIG_MTK_DATA_STALL_NOTIFY */
 };
 
 /**

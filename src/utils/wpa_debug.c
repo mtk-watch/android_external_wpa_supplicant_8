@@ -287,9 +287,11 @@ static void _wpa_hexdump(int level, const char *title, const u8 *buf,
 		} else if (len == 0) {
 			display = "";
 		} else if (show && len) {
+#ifndef CONFIG_MTK_COMMON
 			/* Limit debug message length for Android log */
 			if (slen > 32)
 				slen = 32;
+#endif
 			strbuf = os_malloc(1 + 3 * slen);
 			if (strbuf == NULL) {
 				wpa_printf(MSG_ERROR, "wpa_hexdump: Failed to "

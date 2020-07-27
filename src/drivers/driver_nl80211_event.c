@@ -18,7 +18,7 @@
 #include "common/ieee802_11_defs.h"
 #include "common/ieee802_11_common.h"
 #include "driver_nl80211.h"
-
+#include "mediatek_driver_nl80211.h"
 
 static const char * nl80211_command_to_string(enum nl80211_commands cmd)
 {
@@ -2128,6 +2128,9 @@ static void nl80211_vendor_event(struct wpa_driver_nl80211_data *drv,
 	switch (vendor_id) {
 	case OUI_QCA:
 		nl80211_vendor_event_qca(drv, subcmd, data, len);
+		break;
+	case OUI_MTK:
+		nl80211_vendor_event_mtk(drv, subcmd, data, len);
 		break;
 	default:
 		wpa_printf(MSG_DEBUG, "nl80211: Ignore unsupported vendor event");

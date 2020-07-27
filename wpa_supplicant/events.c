@@ -49,7 +49,9 @@
 #include "mesh_mpm.h"
 #include "wmm_ac.h"
 #include "dpp_supplicant.h"
-
+#ifdef CONFIG_WAPI_SUPPORT
+#include "wapi.h"
+#endif
 
 #define MAX_OWE_TRANSITION_BSS_SELECT_COUNT 5
 
@@ -523,6 +525,11 @@ static int wpa_supplicant_match_privacy(struct wpa_bss *bss,
 
 	if (ssid->key_mgmt & WPA_KEY_MGMT_OSEN)
 		privacy = 1;
+
+#ifdef CONFIG_WAPI_SUPPORT
+	if (ssid->key_mgmt & (WPA_KEY_MGMT_WAPI_PSK | WPA_KEY_MGMT_WAPI_CERT))
+		privacy = 1;
+#endif
 
 	if (bss->caps & IEEE80211_CAP_PRIVACY)
 		return privacy;
@@ -1025,6 +1032,15 @@ struct wpa_ssid * wpa_scan_res_match(struct wpa_supplicant *wpa_s,
 	const u8 *match_ssid;
 	size_t match_ssid_len;
 	struct wpa_ie_data data;
+#ifdef CONFIG_WAPI_SUPPORT
+	u8 wapi_ie_len;
+	int wapi;
+	const u8 *wapi_ie;
+
+	wapi_ie = wpa_bss_get_ie(bss, WLAN_EID_WAPI);
+	wapi_ie_len = wapi_ie ? wapi_ie[1] : 0;
+	wapi = wapi_ie_len > 0;
+#endif
 
 	ie = wpa_bss_get_vendor_ie(bss, WPA_IE_VENDOR_TYPE);
 	wpa_ie_len = ie ? ie[1] : 0;
@@ -1187,8 +1203,18 @@ struct wpa_ssid * wpa_scan_res_match(struct wpa_supplicant *wpa_s,
 		if (!wpa_supplicant_ssid_bss_match(wpa_s, ssid, bss,
 						   debug_print))
 			continue;
+#ifdef CONFIG_WAPI_SUPPORT
+		if (!wapi && ssid->proto == WPA_PROTO_WAPI) {
+			wpa_dbg(wpa_s, MSG_DEBUG, "   skip - non-WAPI network "
+				"not allowed");
+			continue;
+		}
+#endif
 
 		if (!osen && !wpa &&
+#ifdef CONFIG_WAPI_SUPPORT
+		    !wapi &&
+#endif
 		    !(ssid->key_mgmt & WPA_KEY_MGMT_NONE) &&
 		    !(ssid->key_mgmt & WPA_KEY_MGMT_WPS) &&
 		    !(ssid->key_mgmt & WPA_KEY_MGMT_OWE) &&
@@ -1373,7 +1399,14 @@ struct wpa_ssid * wpa_scan_res_match(struct wpa_supplicant *wpa_s,
 			continue;
 		}
 #endif /* CONFIG_DPP */
-
+#ifdef CONFIG_WAPI_SUPPORT
+		if (wapi) {
+			struct wapi_context *wapi = wpa_s->wapi;
+			wapi->bss_wapi_ie_len = 2 + wapi_ie[1];
+			os_memcpy(wapi->bss_wapi_ie, wapi_ie, wapi->bss_wapi_ie_len);
+			wpa_printf(MSG_DEBUG, "[WAPI] selected WAPI AP");
+		}
+#endif
 		/* Matching configuration found */
 		return ssid;
 	}
@@ -2756,7 +2789,9 @@ static void wpa_supplicant_event_assoc(struct wpa_supplicant *wpa_s,
 			wpa_s, WLAN_REASON_DEAUTH_LEAVING);
 		return;
 	}
-
+#ifdef CONFIG_WAPI_SUPPORT
+	if (wpa_s->wpa_proto != WPA_PROTO_WAPI)
+#endif
 	wpa_supplicant_set_state(wpa_s, WPA_ASSOCIATED);
 	if (os_memcmp(bssid, wpa_s->bssid, ETH_ALEN) != 0) {
 		if (os_reltime_initialized(&wpa_s->session_start)) {
@@ -2803,6 +2838,17 @@ static void wpa_supplicant_event_assoc(struct wpa_supplicant *wpa_s,
 #endif /* CONFIG_SME */
 
 	wpa_msg(wpa_s, MSG_INFO, "Associated with " MACSTR, MAC2STR(bssid));
+#ifdef CONFIG_WAPI_SUPPORT
+	/**
+	 * migration notice: please pay attention to if there's any changes under these code
+	 * in new wpa_supplicant.
+	 */
+	if (wpa_s->wpa_proto == WPA_PROTO_WAPI) {
+		wapi_event_assoc(wpa_s);
+		return;
+	}
+#endif
+
 	if (wpa_s->current_ssid) {
 		/* When using scanning (ap_scan=1), SIM PC/SC interface can be
 		 * initialized before association, but for other modes,
@@ -3104,12 +3150,22 @@ static void wpa_supplicant_event_disassoc_finish(struct wpa_supplicant *wpa_s,
 		bssid = wpa_s->pending_bssid;
 	if (wpa_s->wpa_state >= WPA_AUTHENTICATING)
 		wpas_connection_failed(wpa_s, bssid);
+
+#ifdef CONFIG_WAPI_SUPPORT
+	if (wpa_s->wpa_proto == WPA_PROTO_WAPI) {
+		wapi_event_disassoc(wpa_s, bssid);
+	} else
+#endif
 	wpa_sm_notify_disassoc(wpa_s->wpa);
 	if (locally_generated)
 		wpa_s->disconnect_reason = -reason_code;
 	else
 		wpa_s->disconnect_reason = reason_code;
 	wpas_notify_disconnect_reason(wpa_s);
+
+#ifdef CONFIG_WAPI_SUPPORT /* clear keys only if we're not using wapi */
+	if (wpa_s->wpa_proto != WPA_PROTO_WAPI)
+#endif
 	if (wpa_supplicant_dynamic_keys(wpa_s)) {
 		wpa_dbg(wpa_s, MSG_DEBUG, "Disconnect event - remove keys");
 		wpa_clear_keys(wpa_s, wpa_s->bssid);
@@ -3292,6 +3348,10 @@ wpa_supplicant_event_interface_status(struct wpa_supplicant *wpa_s,
 				"driver after interface was added");
 		}
 
+#ifdef CONFIG_WAPI_SUPPORT
+		wapi_init_l2(wpa_s);
+#endif
+
 #ifdef CONFIG_P2P
 		if (!wpa_s->global->p2p &&
 		    !wpa_s->global->p2p_disabled &&
@@ -3314,6 +3374,13 @@ wpa_supplicant_event_interface_status(struct wpa_supplicant *wpa_s,
 		wpa_supplicant_set_state(wpa_s, WPA_INTERFACE_DISABLED);
 		l2_packet_deinit(wpa_s->l2);
 		wpa_s->l2 = NULL;
+
+#ifdef CONFIG_WAPI_SUPPORT
+		if (wpa_s->wapi) {
+			l2_packet_deinit(wpa_s->wapi->l2_wai);
+			wpa_s->wapi->l2_wai = NULL;
+		}
+#endif
 
 #ifdef CONFIG_P2P
 		if (wpa_s->global->p2p &&
@@ -4498,6 +4565,9 @@ void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
 #endif /* CONFIG_IEEE80211W */
 		wpas_p2p_update_channel_list(wpa_s, WPAS_P2P_CHANNEL_UPDATE_CS);
 		wnm_clear_coloc_intf_reporting(wpa_s);
+#ifdef CONFIG_MTK_CH_SWITCH_NOTIFY
+		wpas_notify_assoc_freq_changed(wpa_s);
+#endif /* CONFIG_MTK_CH_SWITCH_NOTIFY */
 		break;
 #ifdef CONFIG_AP
 #ifdef NEED_AP_MLME
@@ -4946,6 +5016,11 @@ void wpa_supplicant_event(void *ctx, enum wpa_event_type event,
 						 data->sta_opmode.rx_nss);
 #endif /* CONFIG_AP */
 		break;
+#ifdef CONFIG_MTK_DATA_STALL_NOTIFY
+	case EVENT_DRIVER_ERROR:
+		wpas_notify_data_stall_reason(wpa_s, (uint32_t)*data->driver_error.errCode);
+		break;
+#endif /* CONFIG_MTK_DATA_STALL_NOTIFY */
 	default:
 		wpa_msg(wpa_s, MSG_INFO, "Unknown event %d", event);
 		break;

@@ -1681,6 +1681,42 @@ ifndef LDO
 LDO=$(CC)
 endif
 
+############ MTK CONFIG START ############
+# Important!!! DO NOT add L_CFLAGS before the very first L_CFLAGS.
+# Otherwise, your configurations will not be defined.
+
+# Support SCC
+ifdef CONFIG_MTK_SCC
+L_CFLAGS += -DCONFIG_MTK_SCC
+endif
+
+# Fix P2P connection issues
+ifdef CONFIG_MTK_P2P_CONN
+L_CFLAGS += -DCONFIG_MTK_P2P_CONN
+endif
+
+#fix supplicant issues
+L_CFLAGS += -DCONFIG_MTK_COMMON
+
+# Define MTK HIDL
+ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+L_CFLAGS += -DCONFIG_CTRL_IFACE_MTK_HIDL
+L_CFLAGS += -DCONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY
+L_CFLAGS += -DCONFIG_MTK_DATA_STALL_NOTIFY
+L_CFLAGS += -DCONFIG_MTK_CH_SWITCH_NOTIFY
+endif
+
+ifeq ($(MTK_WAPI_SUPPORT), yes)
+L_CFLAGS += -DCONFIG_WAPI_SUPPORT
+L_CPPFLAGS += -DCONFIG_WAPI_SUPPORT
+endif
+
+# By terminating on last interface removed, framework will reset both
+# wpa_supplicant and wificond. So we can avoid using old interfaces.
+L_CFLAGS += -DCONFIG_TERMINATE_ONLASTIF
+
+############ MTK CONFIG END ############
+
 ########################
 
 include $(CLEAR_VARS)
@@ -1735,6 +1771,11 @@ LOCAL_SHARED_LIBRARIES += android.hardware.wifi.supplicant@1.1
 LOCAL_SHARED_LIBRARIES += android.hardware.wifi.supplicant@1.2
 LOCAL_SHARED_LIBRARIES += libhidlbase libhidltransport libhwbinder libutils libbase
 LOCAL_STATIC_LIBRARIES += libwpa_hidl
+ifeq ($(CONFIG_CTRL_IFACE_MTK_HIDL), y)
+LOCAL_SHARED_LIBRARIES += vendor.mediatek.hardware.wifi.supplicant@2.0
+LOCAL_SHARED_LIBRARIES += vendor.mediatek.hardware.wifi.supplicant@2.1
+LOCAL_STATIC_LIBRARIES += libwpa_mtk_hidl
+endif # CONFIG_CTRL_IFACE_MTK_HIDL == y
 endif
 include $(BUILD_EXECUTABLE)
 
@@ -1775,6 +1816,12 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/wpa_client_include $(LOCAL_PATH)/wp
 include $(BUILD_SHARED_LIBRARY)
 
 ifeq ($(WPA_SUPPLICANT_USE_HIDL), y)
+# export wpa_supplicant CFLAGS and CPPFlAGS to libwpa_mtk_hidl
+# to avoid variable offset difference in some structure's definition.
+ifeq ($(CONFIG_CTRL_IFACE_MTK_HIDL), y)
+MTK_HIDL_CPPFLAGS := $(L_CPPFLAGS)
+MTK_HIDL_CFLAGS := $(L_CFLAGS)
+endif # CONFIG_CTRL_IFACE_MTK_HIDL
 ### Hidl service library ###
 ########################
 include $(CLEAR_VARS)
@@ -1803,6 +1850,11 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog \
     libssl
+ifeq ($(CONFIG_CTRL_IFACE_MTK_HIDL), y)
+LOCAL_SHARED_LIBRARIES += vendor.mediatek.hardware.wifi.supplicant@2.0
+LOCAL_SHARED_LIBRARIES += vendor.mediatek.hardware.wifi.supplicant@2.1
+LOCAL_C_INCLUDES += vendor/mediatek/proprietary/hardware/connectivity/wlan/wpa_supplicant_8_lib
+endif # CONFIG_CTRL_IFACE_MTK_HIDL
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/hidl/$(HIDL_INTERFACE_VERSION)
 include $(BUILD_STATIC_LIBRARY)

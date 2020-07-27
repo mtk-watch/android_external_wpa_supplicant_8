@@ -1005,6 +1005,12 @@ struct wpa_ssid {
 	 * 1 = Multi-AP backhaul station
 	 */
 	int multi_ap_backhaul_sta;
+#ifdef CONFIG_WAPI_SUPPORT
+	/** WAPI
+	 * certificate alias for wapi cert mode
+	 */
+	u8 *wapi_cert_alias;
+#endif
 };
 
 #endif /* CONFIG_SSID_H */

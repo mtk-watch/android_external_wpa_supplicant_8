@@ -11,7 +11,9 @@
 #include "hidl_return_util.h"
 #include "misc_utils.h"
 #include "sta_network.h"
-
+#ifdef CONFIG_CTRL_IFACE_MTK_HIDL
+#include "mediatek_hidl_utils.h"
+#endif /* CONFIG_CTRL_IFACE_MTK_HIDL */
 extern "C"
 {
 #include "wps_supplicant.h"
@@ -36,11 +38,13 @@ constexpr uint32_t kAllowedKeyMgmtMask =
      static_cast<uint32_t>(ISupplicantStaNetwork::KeyMgmtMask::SUITE_B_192) |
      static_cast<uint32_t>(ISupplicantStaNetwork::KeyMgmtMask::OWE) |
      static_cast<uint32_t>(ISupplicantStaNetwork::KeyMgmtMask::WPA_PSK_SHA256) |
-     static_cast<uint32_t>(ISupplicantStaNetwork::KeyMgmtMask::WPA_EAP_SHA256));
+     static_cast<uint32_t>(ISupplicantStaNetwork::KeyMgmtMask::WPA_EAP_SHA256) |
+     MTK_ALLOWED_KEY_MGMT);
 constexpr uint32_t kAllowedProtoMask =
     (static_cast<uint32_t>(ISupplicantStaNetwork::ProtoMask::WPA) |
      static_cast<uint32_t>(ISupplicantStaNetwork::ProtoMask::RSN) |
-     static_cast<uint32_t>(ISupplicantStaNetwork::ProtoMask::OSEN));
+     static_cast<uint32_t>(ISupplicantStaNetwork::ProtoMask::OSEN) |
+     MTK_ALLOWED_PROTO_MASK);
 constexpr uint32_t kAllowedAuthAlgMask =
     (static_cast<uint32_t>(ISupplicantStaNetwork::AuthAlgMask::OPEN) |
      static_cast<uint32_t>(ISupplicantStaNetwork::AuthAlgMask::SHARED) |
@@ -52,13 +56,15 @@ constexpr uint32_t kAllowedGroupCipherMask =
      static_cast<uint32_t>(ISupplicantStaNetwork::GroupCipherMask::CCMP) |
      static_cast<uint32_t>(
 	 ISupplicantStaNetwork::GroupCipherMask::GTK_NOT_USED) |
-     static_cast<uint32_t>(ISupplicantStaNetwork::GroupCipherMask::GCMP_256));
+     static_cast<uint32_t>(ISupplicantStaNetwork::GroupCipherMask::GCMP_256) |
+     MTK_ALLOWED_GROUP_CIPHER_MASK);
 constexpr uint32_t kAllowedPairwisewCipherMask =
     (static_cast<uint32_t>(ISupplicantStaNetwork::PairwiseCipherMask::NONE) |
      static_cast<uint32_t>(ISupplicantStaNetwork::PairwiseCipherMask::TKIP) |
      static_cast<uint32_t>(ISupplicantStaNetwork::PairwiseCipherMask::CCMP) |
      static_cast<uint32_t>(
-	 ISupplicantStaNetwork::PairwiseCipherMask::GCMP_256));
+	 ISupplicantStaNetwork::PairwiseCipherMask::GCMP_256) |
+	 MTK_ALLOWED_PAIRWISE_CIPHER_MASK);
 constexpr uint32_t kAllowedGroupMgmtCipherMask =
 	(static_cast<uint32_t>(
 			ISupplicantStaNetwork::GroupMgmtCipherMask::BIP_GMAC_128) |

@@ -435,6 +435,10 @@ static int send_and_recv(struct nl80211_global *global,
 			wpa_printf(MSG_INFO,
 				   "nl80211: %s->nl_recvmsgs failed: %d",
 				   __func__, res);
+#ifdef CONFIG_MTK_COMMON
+			if (res == -NLE_NOMEM)
+				err = -ENOMEM;
+#endif
 		}
 	}
  out:
@@ -2912,6 +2916,10 @@ static u32 wpa_cipher_to_cipher_suite(unsigned int cipher)
 		return RSN_CIPHER_SUITE_WEP40;
 	case WPA_CIPHER_GTK_NOT_USED:
 		return RSN_CIPHER_SUITE_NO_GROUP_ADDRESSED;
+#ifdef CONFIG_WAPI_SUPPORT
+	case WPA_CIPHER_SMS4:
+		return RSN_CIPHER_SUITE_TKIP;
+#endif
 	}
 
 	return 0;

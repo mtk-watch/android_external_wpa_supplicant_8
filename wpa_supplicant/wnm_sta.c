@@ -1434,6 +1434,10 @@ static void ieee802_11_rx_bss_trans_mgmt_req(struct wpa_supplicant *wpa_s,
 		wpa_msg(wpa_s, MSG_INFO, ESS_DISASSOC_IMMINENT "%d %u %s",
 			wpa_sm_pmf_enabled(wpa_s->wpa),
 			wpa_s->wnm_dissoc_timer * beacon_int * 128 / 125, url);
+#ifdef CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY
+		wpas_notify_ess_imm_disassoc(wpa_s, wpa_sm_pmf_enabled(wpa_s->wpa),
+			wpa_s->wnm_dissoc_timer * beacon_int * 128 / 125, url);
+#endif /* CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY */
 	}
 
 	if (wpa_s->wnm_mode & WNM_BSS_TM_REQ_DISASSOC_IMMINENT) {

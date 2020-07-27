@@ -183,5 +183,14 @@ void wpas_notify_dpp_configuration_failure(struct wpa_supplicant *wpa_s);
 void wpas_notify_dpp_timeout(struct wpa_supplicant *wpa_s);
 void wpas_notify_dpp_auth_failure(struct wpa_supplicant *wpa_s);
 void wpas_notify_dpp_failure(struct wpa_supplicant *wpa_s);
-
+#ifdef CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY
+void wpas_notify_ess_imm_disassoc(struct wpa_supplicant *wpa_s, const u32 pmf_enabled,
+	const u32 reauth_delay, const char *url);
+#endif /* CONFIG_MTK_WNM_ESS_DISASSOC_NOTIFY */
+#ifdef CONFIG_MTK_DATA_STALL_NOTIFY
+void wpas_notify_data_stall_reason(struct wpa_supplicant *wpa_s, uint32_t reason);
+#endif /* CONFIG_MTK_DATA_STALL_NOTIFY */
+#ifdef CONFIG_MTK_CH_SWITCH_NOTIFY
+void wpas_notify_assoc_freq_changed(struct wpa_supplicant *wpa_s);
+#endif /* CONFIG_MTK_CH_SWITCH_NOTIFY */
 #endif /* NOTIFY_H */
